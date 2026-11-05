@@ -1,0 +1,62 @@
+#!/usr/bin/env python3
+"""Display the active tmux pane's directory and Git state."""
+import os
+from pathlib import Path
+import re
+import subprocess
+import sys
+
+
+def run(args):
+    return subprocess.run(
+        args, capture_output=True, text=True, timeout=1, check=False,
+        env={**os.environ, "GIT_OPTIONAL_LOCKS": "0"},
+    )
+
+
+def safe(value):
+    # Directory and branch names must not introduce status styles or controls.
+    return "".join(c for c in value if c.isprintable()).replace("#", "##")
+
+
+def main():
+    if len(sys.argv) != 2 or not re.fullmatch(r"%\d+", sys.argv[1]):
+        return
+    result = run(["tmux", "display-message", "-p", "-t", sys.argv[1], "#{pane_current_path}"])
+    if result.returncode:
+        return
+    path = result.stdout.rstrip("\n")
+    home = str(Path.home())
+    label = "~" + path[len(home):] if path == home or path.startswith(home + "/") else path
+    if len(label) > 32:
+        label = "…" + label[-31:]
+    output = "#[fg=#89b4fa]" + safe(label)
+    try:
+        git = run(["git", "-C", path, "status", "--porcelain=v1", "--branch", "--untracked-files=normal"])
+        if git.returncode == 0:
+            lines = git.stdout.splitlines()
+            header = lines[0][3:]
+            branch = header.split("...")[0].split(" [")[0]
+            for prefix in ("No commits yet on ", "Initial commit on "):
+                if branch.startswith(prefix):
+                    branch = branch[len(prefix):]
+            if branch.startswith("HEAD ("):
+                branch = "detached"
+            branch = branch if len(branch) <= 24 else branch[:23] + "…"
+            output += " #[fg=#a6adc8]" + safe(branch)
+            if len(lines) > 1:
+                output += " #[fg=#fab387]*"
+            if "ahead " in header:
+                output += " #[fg=#a6e3a1]↑"
+            if "behind " in header:
+                output += " #[fg=#f9e2af]↓"
+    except (subprocess.TimeoutExpired, OSError):
+        pass
+    print(output + "#[default]", end="")
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except (subprocess.TimeoutExpired, OSError):
+        pass

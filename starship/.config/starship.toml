@@ -1,0 +1,18 @@
+format = "$directory$cmd_duration$character"
+# Minimal prompt using Catppuccin Mocha colors.
+add_newline = false
+
+[directory]
+style = "bold #89b4fa"
+format = "[$path]($style) "
+truncation_length = 3
+
+[cmd_duration]
+min_time = 2000
+style = "#f9e2af"
+format = "[$duration]($style) "
+
+[character]
+success_symbol = "[❯](bold #cba6f7)"
+error_symbol = "[❯](bold #f38ba8)"
+vimcmd_symbol = "[❮](bold #a6e3a1)"
